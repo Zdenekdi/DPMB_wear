@@ -14,6 +14,7 @@ import cz.dias.dpmbwear.data.DeparturesRepository
 import cz.dias.dpmbwear.data.StopsRepository
 import cz.dias.dpmbwear.presentation.MainActivity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
 /**
@@ -40,8 +41,6 @@ class NextDepartureComplicationService : SuspendingComplicationDataSourceService
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         if (request.complicationType != ComplicationType.SHORT_TEXT) return null
 
-        val stopId = favouriteStopId()
-
         // Nejdřív cache. Ciferník se překresluje často a vytáhnout kvůli tomu
         // rádio pokaždé by bylo znát na baterii.
         //
@@ -52,9 +51,19 @@ class NextDepartureComplicationService : SuspendingComplicationDataSourceService
         //
         // Repository sahá na SharedPreferences a Gson; onComplicationRequest
         // běží na hlavním vlákně, proto withContext.
+        //
+        // I výběr zastávky jde do IO: první čtení SharedPreferences a sestavení
+        // síťového klienta nemají na hlavním vlákně co dělat.
         val departures = withContext(Dispatchers.IO) {
+            val stopId = favouriteStopId() ?: return@withContext null
             repository.cached(stopId)?.departures?.takeIf { it.isNotEmpty() }
-                ?: runCatching { repository.load(stopId).departures }.getOrNull()
+                ?: try {
+                    repository.load(stopId).departures
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
         }
 
         val next = departures?.firstOrNull() ?: return shortText(
@@ -70,12 +79,12 @@ class NextDepartureComplicationService : SuspendingComplicationDataSourceService
         )
     }
 
-    /** Oblíbená zastávka, jinak poslední zobrazená v aplikaci. */
-    private fun favouriteStopId(): String = stops.preferredStop(
+    /** Oblíbená zastávka, jinak poslední zobrazená. Null = aplikace ještě nebyla otevřena. */
+    private fun favouriteStopId(): String? = stops.preferredStop(
         getSharedPreferences("dpmb_prefs", Context.MODE_PRIVATE)
             .getStringSet("favorite_stops", emptySet())
             .orEmpty()
-    ).id
+    )?.id
 
     private fun shortText(title: String?, text: String, description: String): ComplicationData =
         ShortTextComplicationData.Builder(

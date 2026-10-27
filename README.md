@@ -135,8 +135,9 @@ Obě testované funkce berou čas jako parametr, aby šel v testu zafixovat.
 - Ověřit licenci dat přímo u KORDIS a podmínky užití GTFS-RT.
 - Nasadit server (Docker, 1 GB RAM) s https a vyplnit `DPMB_SERVER_URL`.
 - Porovnat odhad zpoždění se skutečností na pár spojích.
-- Ze serveru přichází i ID zastávek ve tvaru `U1472`; oblíbené zastávky
-  uložené se starými ID (`1017`) se se serverem nenajdou.
+- Se serverem mají zastávky ID ve tvaru `U1472`. Oblíbené uložené se starými
+  ID (`1017`) se ignorují; dlaždice do prvního otevření aplikace ukazuje
+  „Otevři aplikaci“.
 
 **Vyžaduje zařízení**
 

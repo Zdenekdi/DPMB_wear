@@ -1,6 +1,7 @@
 package cz.dias.dpmbwear.data
 
 import cz.dias.dpmbwear.BuildConfig
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -60,8 +61,14 @@ data class ServerDeparture(
 
 object ServerClient {
 
-    /** Prázdná adresa = server není nastavený a aplikace použije jiný zdroj. */
-    val isConfigured: Boolean get() = BuildConfig.DPMB_SERVER_URL.isNotBlank()
+    /**
+     * Prázdná nebo neplatná adresa = server není nastavený a aplikace použije
+     * jiný zdroj. Neplatná adresa (bez http://) by jinak shodila Retrofit už
+     * při spuštění aplikace, dlaždice i komplikace. Build ji odmítne dřív,
+     * tohle je pojistka.
+     */
+    val isConfigured: Boolean
+        get() = BuildConfig.DPMB_SERVER_URL.trim().toHttpUrlOrNull() != null
 
     val api: DpmbServerApi by lazy {
         // Retrofit vyžaduje adresu zakončenou lomítkem; v local.properties se

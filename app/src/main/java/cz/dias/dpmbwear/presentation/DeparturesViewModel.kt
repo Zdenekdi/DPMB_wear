@@ -19,6 +19,7 @@ import cz.dias.dpmbwear.data.StopsRepository
 import cz.dias.dpmbwear.data.model.Departure
 import cz.dias.dpmbwear.data.model.Stop
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -64,6 +65,8 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
                 val location = resolveLocation()
                 try {
                     selectNearbyStops(location)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     // Se serverem a bez signálu při úplně prvním spuštění
                     // nemáme ani zapamatované zastávky.
@@ -191,6 +194,8 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
                 fetchedAt = result.fetchedAt,
                 adjustedAt = result.adjustedAt,
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             // Automatické obnovení nesmí shodit obrazovku s platnými daty.
             if (!showLoading && _uiState.value is DeparturesUiState.Success) return

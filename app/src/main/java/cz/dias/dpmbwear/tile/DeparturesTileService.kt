@@ -18,12 +18,14 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
+import cz.dias.dpmbwear.R
 import cz.dias.dpmbwear.data.DeparturesRepository
 import cz.dias.dpmbwear.data.StopsRepository
 import cz.dias.dpmbwear.data.model.Departure
 import cz.dias.dpmbwear.presentation.MainActivity
 import cz.dias.dpmbwear.presentation.theme.LineColors
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -57,10 +59,16 @@ class DeparturesTileService : TileService() {
         val future = SettableFuture.create<TileBuilders.Tile>()
         val job = scope.launch {
             try {
-                val departures = try {
-                    repository.load(stop.id).departures
-                } catch (e: Exception) {
-                    repository.cached(stop.id)?.departures.orEmpty()
+                val departures = if (stop == null) {
+                    emptyList()
+                } else {
+                    try {
+                        repository.load(stop.id).departures
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        repository.cached(stop.id)?.departures.orEmpty()
+                    }
                 }
 
                 future.set(
@@ -72,7 +80,7 @@ class DeparturesTileService : TileService() {
                         .setTileTimeline(
                             TimelineBuilders.Timeline.fromLayoutElement(
                                 layout(
-                                    stopName = stop.name,
+                                    stopName = stop?.name ?: getString(R.string.tile_open_app),
                                     departures = departures.take(MAX_ROWS),
                                     deviceParameters = requestParams.deviceConfiguration,
                                 )

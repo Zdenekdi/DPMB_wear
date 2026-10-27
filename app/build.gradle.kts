@@ -27,8 +27,18 @@ val idsApiKey: String = localProps.getProperty("IDS_API_KEY") ?: ""
  *   DPMB_SERVER_URL=https://dpmb.example.cz/
  *   DPMB_SERVER_KEY=stejny-klic-jako-API_KEY-na-serveru
  */
-val dpmbServerUrl: String = localProps.getProperty("DPMB_SERVER_URL") ?: ""
-val dpmbServerKey: String = localProps.getProperty("DPMB_SERVER_KEY") ?: ""
+val dpmbServerUrl: String = (localProps.getProperty("DPMB_SERVER_URL") ?: "").trim()
+val dpmbServerKey: String = (localProps.getProperty("DPMB_SERVER_KEY") ?: "").trim()
+
+// Překlep v adrese by jinak shodil aplikaci až na hodinkách.
+if (dpmbServerUrl.isNotEmpty() && !Regex("^https?://[^\\s\"]+$").matches(dpmbServerUrl)) {
+    throw GradleException("DPMB_SERVER_URL musí začínat http:// nebo https://, je: $dpmbServerUrl")
+}
+// Hodnota se vkládá do Java zdrojáku BuildConfig; uvozovka nebo zpětné
+// lomítko by ho rozbily.
+if (!Regex("^[A-Za-z0-9_.~-]*$").matches(dpmbServerKey)) {
+    throw GradleException("DPMB_SERVER_KEY smí obsahovat jen písmena, číslice a _ . ~ -")
+}
 
 android {
     namespace = "cz.dias.dpmbwear"

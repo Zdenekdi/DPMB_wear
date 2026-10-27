@@ -48,9 +48,14 @@ class StopsRepository(
         }
     }
 
-    /** Zastávka podle ID: nejdřív zapamatované ze serveru, pak statický seznam. */
+    /**
+     * Zastávka podle ID: nejdřív zapamatovaná ze serveru, pak statický seznam.
+     *
+     * Statický seznam jen bez serveru: má ID ze starého API ("1017"), na která
+     * server odpoví 404, a dlaždice by pak navždy ukazovala prázdno.
+     */
     fun byId(id: String): Stop? =
-        rememberedStop(id) ?: staticStops.find { it.id == id }
+        rememberedStop(id) ?: staticStops.find { it.id == id }.takeIf { api == null }
 
     /** Poslední zobrazená zastávka. Dlaždice ji použije, když není žádná oblíbená. */
     var lastStopId: String?
@@ -60,13 +65,22 @@ class StopsRepository(
         }
 
     /**
-     * Zastávka pro dlaždici a komplikaci: oblíbená, jinak poslední zobrazená,
-     * jinak první ze statického seznamu.
+     * Zastávka pro dlaždici a komplikaci.
+     *
+     * Pořadí: poslední zobrazená, pokud je oblíbená → jiná oblíbená → poslední
+     * zobrazená → (jen bez serveru) první statická. Oblíbené jsou v HashSetu,
+     * takže "první oblíbená" je náhodná; poslední zobrazená oblíbená je
+     * nejlepší odhad, kterou uživatel chce.
+     *
+     * Null = se serverem a před prvním otevřením aplikace zatím žádnou
+     * zastávku neznáme. Volající ukáže "otevři aplikaci".
      */
-    fun preferredStop(favouriteIds: Set<String>): Stop {
+    fun preferredStop(favouriteIds: Set<String>): Stop? {
+        val last = lastStopId
+        if (last != null && last in favouriteIds) byId(last)?.let { return it }
         favouriteIds.asSequence().mapNotNull(::byId).firstOrNull()?.let { return it }
-        lastStopId?.let(::byId)?.let { return it }
-        return staticStops[0]
+        last?.let(::byId)?.let { return it }
+        return staticStops[0].takeIf { api == null }
     }
 
     private fun remember(stop: Stop) {

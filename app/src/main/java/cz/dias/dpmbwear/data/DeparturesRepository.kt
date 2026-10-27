@@ -5,6 +5,7 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import cz.dias.dpmbwear.data.model.Departure
 import cz.dias.dpmbwear.data.model.DeparturesResult
+import kotlinx.coroutines.CancellationException
 
 /**
  * Načítání odjezdů s cache.
@@ -30,6 +31,10 @@ class DeparturesRepository(
             val now = System.currentTimeMillis()
             writeCache(stopId, fresh, now)
             DeparturesResult(stopId, fresh, fetchedAt = now, adjustedAt = now, isStale = false)
+        } catch (e: CancellationException) {
+            // Zrušení (obrazovka odešla do pozadí) není výpadek sítě. Bez
+            // tohohle by se ukázalo "Bez signálu" při plně funkční síti.
+            throw e
         } catch (e: Exception) {
             // Síť selhala – zkusíme poslední známý stav.
             readCache(stopId)?.let { return it }

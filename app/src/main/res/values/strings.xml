@@ -45,4 +45,7 @@
     <string name="complication_unknown">Odjezd není znám</string>
     <string name="complication_next">Linka %1$s za %2$d minut</string>
     <string name="complication_preview">Tramvaj 1 za 3 minuty</string>
+
+    <!-- Dlaždice -->
+    <string name="tile_open_app">Otevři aplikaci</string>
 </resources>
