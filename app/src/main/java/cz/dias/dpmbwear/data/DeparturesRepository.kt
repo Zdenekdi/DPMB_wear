@@ -16,30 +16,58 @@ import kotlinx.coroutines.CancellationException
  */
 class DeparturesRepository(
     context: Context,
-    private val source: DeparturesSource = defaultSource(),
+    private val sources: List<DeparturesSource> = defaultSources(context),
 ) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val gson = Gson()
 
-    /** False znamená, že uživatel kouká na ukázková data a UI to musí přiznat. */
-    val isUsingRealData: Boolean = source !is FakeDeparturesSource
+    @Volatile
+    private var lastWasDemo = sources.firstOrNull()?.isDemo ?: true
 
+    /**
+     * False znamená, že uživatel kouká na ukázková data a UI to musí přiznat.
+     * Mění se podle toho, který zdroj naposledy odpověděl.
+     */
+    val isUsingRealData: Boolean get() = !lastWasDemo
+
+    /**
+     * Zkouší zdroje v pořadí: telefon → server (je-li nastavený).
+     *
+     * Než dojde na ukázková data, má přednost poslední známý stav z cache,
+     * označený jako zastaralý. Odjezdy z telefonu před pěti minutami jsou
+     * užitečnější než vymyšlené – a cache už minuty sama posune.
+     */
     suspend fun load(stopId: String): DeparturesResult {
-        return try {
-            val fresh = source.getDepartures(stopId)
-            val now = System.currentTimeMillis()
-            writeCache(stopId, fresh, now)
-            DeparturesResult(stopId, fresh, fetchedAt = now, adjustedAt = now, isStale = false)
-        } catch (e: CancellationException) {
-            // Zrušení (obrazovka odešla do pozadí) není výpadek sítě. Bez
-            // tohohle by se ukázalo "Bez signálu" při plně funkční síti.
-            throw e
-        } catch (e: Exception) {
-            // Síť selhala – zkusíme poslední známý stav.
-            readCache(stopId)?.let { return it }
-            throw e
+        var lastError: Exception? = null
+        for (source in sources) {
+            if (source.isDemo) {
+                readCache(stopId)?.let {
+                    lastWasDemo = false
+                    return it
+                }
+            }
+            try {
+                val fresh = source.getDepartures(stopId)
+                val now = System.currentTimeMillis()
+                // Ukázková data se do cache nikdy nedostanou, jinak by se
+                // později tvářila jako zastaralá ostrá data.
+                if (!source.isDemo) writeCache(stopId, fresh, now)
+                lastWasDemo = source.isDemo
+                return DeparturesResult(stopId, fresh, fetchedAt = now, adjustedAt = now, isStale = false)
+            } catch (e: CancellationException) {
+                // Zrušení (obrazovka odešla do pozadí) není výpadek sítě. Bez
+                // tohohle by se ukázalo "Bez signálu" při plně funkční síti.
+                throw e
+            } catch (e: Exception) {
+                lastError = e
+            }
         }
+        readCache(stopId)?.let {
+            lastWasDemo = false
+            return it
+        }
+        throw lastError ?: IllegalStateException("Žádný zdroj odjezdů")
     }
 
     /** Poslední uložený stav bez pokusu o síť. Používá dlaždice a komplikace. */
@@ -103,15 +131,19 @@ class DeparturesRepository(
 
         /**
          * Pořadí zdrojů:
-         *  1. vlastní server nad otevřenými daty KORDIS (DPMB_SERVER_URL),
-         *  2. API KORDIS s přiděleným klíčem (IDS_API_KEY) – pouští jen
-         *     smluvní partnery,
-         *  3. ukázková data, aby šla aplikace vyzkoušet bez sítě.
+         *  1. telefon jako proxy (aplikace :mobile) – hlavní cesta,
+         *  2. vlastní server (DPMB_SERVER_URL) nebo API KORDIS s klíčem
+         *     (IDS_API_KEY), pokud jsou nastavené – pro hodinky na Wi-Fi/LTE
+         *     bez telefonu,
+         *  3. ukázková data, aby šla aplikace vyzkoušet i bez telefonu.
          */
-        fun defaultSource(): DeparturesSource = when {
-            ServerClient.isConfigured -> ServerDeparturesSource()
-            NetworkClient.hasApiKey -> IdsJmkDeparturesSource()
-            else -> FakeDeparturesSource()
+        fun defaultSources(context: Context): List<DeparturesSource> = buildList {
+            add(PhoneDeparturesSource(PhoneBridge.get(context)))
+            when {
+                ServerClient.isConfigured -> add(ServerDeparturesSource())
+                NetworkClient.hasApiKey -> add(IdsJmkDeparturesSource())
+            }
+            add(FakeDeparturesSource())
         }
     }
 }

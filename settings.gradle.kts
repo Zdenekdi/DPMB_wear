@@ -24,4 +24,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "DPMB Wear"
 include(":app")
+include(":mobile")
+include(":shared")
  

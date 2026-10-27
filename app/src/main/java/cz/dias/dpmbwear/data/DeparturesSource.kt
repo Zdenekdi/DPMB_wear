@@ -5,13 +5,16 @@ import cz.dias.dpmbwear.data.model.Departure
 /**
  * Zdroj odjezdů.
  *
- * Existuje proto, aby šlo měnit odkud data jdou beze změny zbytku aplikace:
- * [ServerDeparturesSource] (vlastní server nad otevřenými daty),
- * [IdsJmkDeparturesSource] (API KORDIS s klíčem) nebo [FakeDeparturesSource].
- * Volba probíhá v [DeparturesRepository.defaultSource] podle local.properties.
+ * Zdroje se zkoušejí v pořadí z [DeparturesRepository.defaultSources]:
+ * [PhoneDeparturesSource] (telefon jako proxy, hlavní cesta),
+ * [ServerDeparturesSource] nebo [IdsJmkDeparturesSource] (podle
+ * local.properties) a nakonec [FakeDeparturesSource].
  */
 interface DeparturesSource {
 
     /** Vrátí odjezdy pro zastávku, nebo vyhodí výjimku při selhání sítě. */
     suspend fun getDepartures(stopId: String): List<Departure>
+
+    /** True = ukázková data; UI to musí přiznat a nesmí se ukládat do cache. */
+    val isDemo: Boolean get() = false
 }

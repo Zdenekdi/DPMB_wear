@@ -6,50 +6,67 @@ Aplikace pro Wear OS: odjezdy MHD v Brně, SMS jízdenky, QR kód z Brno iD.
 
 ## Stav dat — přečti první
 
-Aplikace umí tři zdroje odjezdů. Vybírá je `DeparturesRepository.defaultSource()`
-podle `local.properties` (soubor je v `.gitignore`):
-
-| Pořadí | Zdroj | Nastavení | Stav |
-|---|---|---|---|
-| 1 | **Vlastní server** nad otevřenými daty KORDIS (`server/`) | `DPMB_SERVER_URL`, `DPMB_SERVER_KEY` | hlavní cesta |
-| 2 | API `mapa.idsjmk.cz` s klíčem | `IDS_API_KEY` | jen pro smluvní partnery KORDIS |
-| 3 | Ukázková data | nic | aplikace to na obrazovce přizná |
-
-### Proč vlastní server
-
-KORDIS JMK v roce 2026 pustil API `mapa.idsjmk.cz` jen smluvním partnerům.
-Zároveň ale veřejně vydává jízdní řád (GTFS) a polohy vozidel (GTFS-RT)
-na `kordis-jmk.cz/gtfs/`, podle projektů, které je používají, pod CC BY 4.0.
-Server z nich počítá odjezdy; hodinky dostanou jen hotový seznam pro jednu
-zastávku. Podrobnosti a spuštění v [`server/README.md`](server/README.md).
-
-Dvě věci, které z toho plynou:
-
-- **Zpoždění je odhad.** Feed obsahuje polohy, ne zpoždění. Server ho počítá
-  z polohy vozidla mezi zastávkami. Aplikace u spoje ukáže `LIVE +3`
-  a pod odjezdy upozornění „Zpoždění je odhad“.
-- **Uvedení zdroje je povinné** (CC BY 4.0). Text je pod seznamem odjezdů.
-
-### Vyzkoušení se serverem na Macu
-
-```bash
-cd server && pip install -e . && API_KEY=lokalni dpmb-server
-```
-
-Do `local.properties`:
+**Architektonické pravidlo: s KORDIS JMK mluví jen telefon.** Hodinky se
+ptají telefonu přes Bluetooth (Wearable Data Layer) a dostanou hotový,
+minimální JSON. Telefon stahuje z české IP (mobilní data / Wi-Fi), takže
+případné blokace serverových a zahraničních adres se ho netýkají.
 
 ```
-DPMB_SERVER_URL=http://192.168.x.x:8080/
-DPMB_SERVER_KEY=lokalni
+KORDIS JMK ──GTFS (1× denně, Wi-Fi)──▶ telefon :mobile ──Data Layer (~1 kB)──▶ hodinky :app
+           ──GTFS-RT (na dotaz)─────▶  jízdní řád v mmap,                       cache + offline
+                                       odhad zpoždění
 ```
 
-Ladicí build dovoluje `http://` (viz `app/src/debug/AndroidManifest.xml`),
-release jen `https://`.
+| Modul | Co dělá |
+|---|---|
+| `:shared` | čisté Kotlin jádro: formát zpráv, převod GTFS, čtení GTFS-RT, odhad zpoždění, odjezdy. Testy běží na JVM. |
+| `:mobile` | aplikace pro telefon: stahuje a převádí jízdní řád, odpovídá na dotazy hodinek |
+| `:app` | hodinky: UI, dlaždice, komplikace, cache |
+| `server/` | volitelná záloha pro hodinky na Wi-Fi/LTE bez telefonu (Python) |
 
-### Klíč a veřejná distribuce
+**Obě aplikace musí mít stejné `applicationId` (`cz.dias.dpmbwear`) a stejný
+podpisový klíč**, jinak se přes Data Layer neuvidí. Debug buildy z jednoho
+počítače to splňují samy.
 
-`DPMB_SERVER_KEY` je v APK, takže z něj jde dekompilací získat. Brání jen
-tomu, aby server náhodně zatížil kdokoli z internetu.
+### Zdroje dat
+
+- Jízdní řád: `https://kordis-jmk.cz/gtfs/gtfs.zip` – telefon ho kontroluje
+  jednou denně na Wi-Fi (`If-Modified-Since`), převede na binární soubor
+  (~60 MB pro celý kraj) a pak ho jen mapuje do paměti.
+- Živá data: `https://kordis-jmk.cz/gtfs/gtfsReal.dat` – jen na dotaz
+  z hodinek, drží se 15 s.
+- Licence CC BY 4.0 (podle projektů, které data používají – ověřit u KORDIS).
+  Uvedení zdroje je pod seznamem odjezdů v hodinkách i v aplikaci na telefonu.
+
+**Zpoždění je odhad.** Feed obsahuje polohy vozidel, ne zpoždění. Počítá se
+z polohy mezi zastávkami a jízdního řádu; náskok se do času nepromítá.
+
+### Payload telefon → hodinky
+
+```json
+{"v":1,"id":"a1b2","t":1793170000,"rt":12,
+ "s":[["U100","Česká",49.19612,16.60621,45,
+       [["1","Ečerova",1793170120,2],["6","Královo Pole",1793170300,null]]]]}
+```
+
+`t` čas telefonu, `rt` stáří živých dat (−1 = jen jízdní řád), `s` zastávky
+`[id, název, lat, lon, vzdálenost m, odjezdy]`, odjezd `[linka, cíl, epoch,
+zpoždění min | null]`. Časy jsou absolutní, takže uložená odpověď zůstává
+pravdivá i offline – hodinky jen přepočítají minuty a zahodí odjeté spoje.
+Tři zastávky po osmi odjezdech ≈ 1 kB.
+
+### Offline a výpadky
+
+Pořadí v `DeparturesRepository.load()`:
+
+1. telefon (odpověď mladší než 20 s se použije znovu bez Bluetooth),
+2. server, je-li nastavený `DPMB_SERVER_URL` (hodinky bez telefonu),
+3. **poslední známá data z cache** – minuty posunuté o stáří, odjeté spoje
+   zahozené, na obrazovce „Bez signálu · před X min“, nejvýš 30 min,
+4. ukázková data (jen když nic z toho není) – obrazovka to přizná.
+
+Když telefon nemá internet, odpoví podle jízdního řádu bez živých dat
+(`rt: -1`) a u spojů nebude „LIVE“.
 
 ---
 
@@ -57,14 +74,16 @@ tomu, aby server náhodně zatížil kdokoli z internetu.
 
 ```
 data/
-  DeparturesSource        rozhraní — jediné místo, kde se rozhoduje o zdroji dat
+  DeparturesSource        rozhraní zdroje odjezdů
+  PhoneBridge               Data Layer: dotaz na telefon, čekání na odpověď, uložení
+  PhoneDeparturesSource     odjezdy z odpovědi telefonu (hlavní zdroj)
   ServerDeparturesSource    vlastní server nad otevřenými daty KORDIS
   DpmbServerApi             Retrofit rozhraní serveru + ServerClient
   FakeDeparturesSource      ukázková data, když není server ani klíč
   IdsJmkDeparturesSource    API KORDIS JMK s klíčem (smluvní partneři)
   IdsJmkApi                 Retrofit + OkHttp s timeouty
   DeparturesRepository      cache a výběr zdroje
-  StopsRepository           nejbližší zastávky (ze serveru, jinak statické),
+  StopsRepository           nejbližší zastávky (telefon → server → paměť → statické),
                             paměť zastávek pro dlaždici a komplikaci
   model/Models.kt           Stop, Departure, DeparturesResult
 
@@ -122,7 +141,10 @@ Pokrývají logiku, která selhává tiše — špatný výsledek vypadá jako d
 - `LineColorsTest` — přiřazení barvy linky, včetně regrese na pořadí podmínek
 - `ServerMappingTest` — převod odpovědi serveru, zahazování neúplných řádků
 
-Server má vlastní testy: `cd server && pytest`.
+Jádro má testy na JVM (`./gradlew :shared:testDebugUnitTest`): převod GTFS,
+noční spoje a změna času, čtení GTFS-RT proti feedům z oficiální knihovny,
+odhad zpoždění, formát payloadu. Hodinky: `PhoneMappingTest` (rozdíl hodin
+telefonu a hodinek, stárnutí uložené odpovědi). Server: `cd server && pytest`.
 
 Obě testované funkce berou čas jako parametr, aby šel v testu zafixovat.
 
@@ -132,12 +154,11 @@ Obě testované funkce berou čas jako parametr, aby šel v testu zafixovat.
 
 **Před ostrým provozem**
 
-- Ověřit licenci dat přímo u KORDIS a podmínky užití GTFS-RT.
-- Nasadit server (Docker, 1 GB RAM) s https a vyplnit `DPMB_SERVER_URL`.
+- Sestavit všechny tři moduly v Android Studiu a nainstalovat `:mobile` na
+  telefon a `:app` na hodinky.
+- V aplikaci na telefonu stáhnout jízdní řád a „Vyzkoušet odjezdy u mě“.
+- Ověřit licenci dat přímo u KORDIS.
 - Porovnat odhad zpoždění se skutečností na pár spojích.
-- Se serverem mají zastávky ID ve tvaru `U1472`. Oblíbené uložené se starými
-  ID (`1017`) se ignorují; dlaždice do prvního otevření aplikace ukazuje
-  „Otevři aplikaci“.
 
 **Vyžaduje zařízení**
 

@@ -1,4 +1,7 @@
-# DPMB Wear – server
+# DPMB Wear – server (volitelná záloha)
+
+> Hlavní cesta dat vede přes telefon (modul `:mobile`). Server je jen záloha
+> pro hodinky na Wi-Fi/LTE bez telefonu. Počítá stejně jako `:shared`.
 
 Malá služba, která z otevřených dat KORDIS JMK počítá odjezdy pro hodinky.
 Hodinky nestahují celý jízdní řád (desítky MB), dostanou jen hotový seznam

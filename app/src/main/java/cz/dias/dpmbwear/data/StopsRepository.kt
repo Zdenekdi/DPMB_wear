@@ -12,24 +12,43 @@ import kotlin.math.sqrt
 /**
  * Zastávky.
  *
- * Se serverem se nejbližší zastávky ptají serveru – ten zná všechny zastávky
- * IDS JMK ze stops.txt. Bez serveru (ukázková data, API s klíčem) zůstává
- * pět natvrdo zadaných zastávek.
+ * Pořadí: telefon (zná všechny zastávky IDS JMK z jízdního řádu) → server,
+ * je-li nastavený → zapamatované zastávky → pět natvrdo zadaných zastávek
+ * pro ukázková data.
  *
- * Každou zastávku ze serveru si repository zapamatuje. Dlaždice a komplikace
+ * Každou zastávku z telefonu nebo serveru si repository zapamatuje. Dlaždice a komplikace
  * znají jen ID oblíbené zastávky a potřebují k ní název, aniž by kvůli tomu
  * budily rádio.
  */
 class StopsRepository(
     context: Context,
     private val api: DpmbServerApi? = if (ServerClient.isConfigured) ServerClient.api else null,
+    private val phone: PhoneBridge? = PhoneBridge.get(context),
 ) {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Zastávky seřazené podle vzdálenosti. Bez serveru ze statického seznamu. */
+    /** Zastávky seřazené podle vzdálenosti. */
     suspend fun nearest(lat: Double, lon: Double, limit: Int): List<Stop> {
-        val server = api ?: return nearestStatic(lat, lon, limit)
+        phone?.let { bridge ->
+            try {
+                // Telefon v téže odpovědi pošle i odjezdy těchto zastávek, takže
+                // následné načtení odjezdů už přes Bluetooth nejde.
+                val found = bridge.request(lat, lon, stopId = null).payload.stops
+                    .map { Stop(it.id, it.name, it.lat, it.lon) }
+                if (found.isNotEmpty()) {
+                    found.forEach(::remember)
+                    return found.take(limit)
+                }
+            } catch (e: PhoneUnavailableException) {
+                // Telefon není po ruce – zkusí se server nebo paměť.
+            }
+        }
+
+        val server = api ?: return rememberedStops()
+            .sortedBy { distanceKm(lat, lon, it.lat, it.lon) }
+            .take(limit)
+            .ifEmpty { nearestStatic(lat, lon, limit) }
 
         return try {
             val found = server.nearbyStops(lat, lon, limit).stops.orEmpty().mapNotNull { it.toStop() }
@@ -55,7 +74,7 @@ class StopsRepository(
      * server odpoví 404, a dlaždice by pak navždy ukazovala prázdno.
      */
     fun byId(id: String): Stop? =
-        rememberedStop(id) ?: staticStops.find { it.id == id }.takeIf { api == null }
+        rememberedStop(id) ?: staticStops.find { it.id == id }.takeIf { staticAllowed() }
 
     /** Poslední zobrazená zastávka. Dlaždice ji použije, když není žádná oblíbená. */
     var lastStopId: String?
@@ -80,8 +99,15 @@ class StopsRepository(
         if (last != null && last in favouriteIds) byId(last)?.let { return it }
         favouriteIds.asSequence().mapNotNull(::byId).firstOrNull()?.let { return it }
         last?.let(::byId)?.let { return it }
-        return staticStops[0].takeIf { api == null }
+        return staticStops[0].takeIf { staticAllowed() }
     }
+
+    /**
+     * Statická ID ("1017") jsou ze starého API a telefon ani server je neznají.
+     * Použijí se, jen dokud aplikace nikdy nedostala skutečné zastávky
+     * (ukázková data bez telefonu i serveru).
+     */
+    private fun staticAllowed(): Boolean = api == null && prefs.all.keys.none { it.startsWith(KEY_STOP) }
 
     private fun remember(stop: Stop) {
         prefs.edit().putString(KEY_STOP + stop.id, encode(stop)).apply()

@@ -14,7 +14,7 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import cz.dias.dpmbwear.R
 import cz.dias.dpmbwear.data.DeparturesRepository
-import cz.dias.dpmbwear.data.ServerClient
+import cz.dias.dpmbwear.data.PhoneBridge
 import cz.dias.dpmbwear.data.StopsRepository
 import cz.dias.dpmbwear.data.model.Departure
 import cz.dias.dpmbwear.data.model.Stop
@@ -49,8 +49,20 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
     private var currentStopIndex = 0
     private var autoRefreshJob: Job? = null
 
-    /** True, pokud běžíme na ukázkových datech, protože chybí přístupový klíč. */
-    val isDemoData: Boolean = !repository.isUsingRealData
+    init {
+        // Odpověď z telefonu může dorazit i po timeoutu nebo jako odpověď na
+        // dotaz dlaždice. Když obsahuje zobrazenou zastávku, obrazovka se
+        // obnoví hned – data se vezmou z čerstvé odpovědi, Bluetooth se
+        // znovu nebudí (PhoneDeparturesSource.REUSE_MS).
+        viewModelScope.launch {
+            PhoneBridge.get(application).updates.collect { received ->
+                val stop = nearbyStops.getOrNull(currentStopIndex) ?: return@collect
+                if (received.payload.stop(stop.id) != null && _uiState.value is DeparturesUiState.Success) {
+                    fetchCurrentStop(showLoading = false)
+                }
+            }
+        }
+    }
 
     fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(
@@ -189,8 +201,9 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
                 isFavorite = favouriteStopIds().contains(stop.id),
                 indexText = "${currentStopIndex + 1}/${nearbyStops.size}",
                 isStale = result.isStale,
-                isDemo = isDemoData,
-                showAttribution = ServerClient.isConfigured,
+                isDemo = !repository.isUsingRealData,
+                // Ostrá data jsou vždy z otevřených dat KORDIS (CC BY 4.0).
+                showAttribution = repository.isUsingRealData,
                 fetchedAt = result.fetchedAt,
                 adjustedAt = result.adjustedAt,
             )

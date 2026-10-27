@@ -81,6 +81,11 @@ android {
 }
 
 dependencies {
+    // Formát zpráv s telefonem (WatchPayload, PayloadCodec).
+    implementation(project(":shared"))
+    // await() pro Tasks z Play services (Data Layer).
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
     implementation(platform(libs.compose.bom))
     implementation(libs.activity.compose)
     implementation(libs.compose.foundation)

@@ -12,6 +12,8 @@ import kotlinx.coroutines.delay
  */
 class FakeDeparturesSource : DeparturesSource {
 
+    override val isDemo: Boolean get() = true
+
     override suspend fun getDepartures(stopId: String): List<Departure> {
         delay(400) // Simuluje latenci sítě, ať jde vyzkoušet stav načítání.
 
