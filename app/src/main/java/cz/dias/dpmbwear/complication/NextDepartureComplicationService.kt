@@ -26,6 +26,7 @@ import kotlinx.coroutines.withContext
 class NextDepartureComplicationService : SuspendingComplicationDataSourceService() {
 
     private val repository by lazy { DeparturesRepository(applicationContext) }
+    private val stops by lazy { StopsRepository(applicationContext) }
 
     override fun getPreviewData(type: ComplicationType): ComplicationData? {
         if (type != ComplicationType.SHORT_TEXT) return null
@@ -69,11 +70,12 @@ class NextDepartureComplicationService : SuspendingComplicationDataSourceService
         )
     }
 
-    private fun favouriteStopId(): String =
+    /** Oblíbená zastávka, jinak poslední zobrazená v aplikaci. */
+    private fun favouriteStopId(): String = stops.preferredStop(
         getSharedPreferences("dpmb_prefs", Context.MODE_PRIVATE)
             .getStringSet("favorite_stops", emptySet())
-            ?.firstOrNull()
-            ?: StopsRepository.staticStops[0].id
+            .orEmpty()
+    ).id
 
     private fun shortText(title: String?, text: String, description: String): ComplicationData =
         ShortTextComplicationData.Builder(

@@ -40,17 +40,17 @@ class DeparturesTileService : TileService() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val repository by lazy { DeparturesRepository(applicationContext) }
+    private val stops by lazy { StopsRepository(applicationContext) }
 
     override fun onTileRequest(
         requestParams: RequestBuilders.TileRequest,
     ): ListenableFuture<TileBuilders.Tile> {
-        val stopId = getSharedPreferences("dpmb_prefs", Context.MODE_PRIVATE)
+        // Oblíbená zastávka, jinak poslední zobrazená v aplikaci. Název se
+        // bere z paměti zastávek, takže kvůli němu nejde žádný dotaz na síť.
+        val favourites = getSharedPreferences("dpmb_prefs", Context.MODE_PRIVATE)
             .getStringSet("favorite_stops", emptySet())
-            ?.firstOrNull()
-            ?: StopsRepository.staticStops[0].id
-
-        val stop = StopsRepository.staticStops.find { it.id == stopId }
-            ?: StopsRepository.staticStops[0]
+            .orEmpty()
+        val stop = stops.preferredStop(favourites)
 
         // Dlaždice musí vrátit future, ne blokovat. Načtení jde přes stejné
         // repository jako aplikace, takže sdílí cache i výběr zdroje.

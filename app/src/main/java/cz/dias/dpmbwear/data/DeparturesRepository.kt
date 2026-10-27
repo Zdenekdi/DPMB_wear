@@ -22,7 +22,7 @@ class DeparturesRepository(
     private val gson = Gson()
 
     /** False znamená, že uživatel kouká na ukázková data a UI to musí přiznat. */
-    val isUsingRealData: Boolean = source is IdsJmkDeparturesSource
+    val isUsingRealData: Boolean = source !is FakeDeparturesSource
 
     suspend fun load(stopId: String): DeparturesResult {
         return try {
@@ -97,10 +97,16 @@ class DeparturesRepository(
         private const val MAX_CACHE_AGE_MINUTES = 30
 
         /**
-         * Bez přiděleného klíče od KORDISu nemá ostrý zdroj co dělat – API
-         * pouští jen smluvní partnery a vracelo by chybu.
+         * Pořadí zdrojů:
+         *  1. vlastní server nad otevřenými daty KORDIS (DPMB_SERVER_URL),
+         *  2. API KORDIS s přiděleným klíčem (IDS_API_KEY) – pouští jen
+         *     smluvní partnery,
+         *  3. ukázková data, aby šla aplikace vyzkoušet bez sítě.
          */
-        fun defaultSource(): DeparturesSource =
-            if (NetworkClient.hasApiKey) IdsJmkDeparturesSource() else FakeDeparturesSource()
+        fun defaultSource(): DeparturesSource = when {
+            ServerClient.isConfigured -> ServerDeparturesSource()
+            NetworkClient.hasApiKey -> IdsJmkDeparturesSource()
+            else -> FakeDeparturesSource()
+        }
     }
 }

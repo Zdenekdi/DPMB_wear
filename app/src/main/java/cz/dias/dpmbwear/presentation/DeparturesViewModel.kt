@@ -14,6 +14,7 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import cz.dias.dpmbwear.R
 import cz.dias.dpmbwear.data.DeparturesRepository
+import cz.dias.dpmbwear.data.ServerClient
 import cz.dias.dpmbwear.data.StopsRepository
 import cz.dias.dpmbwear.data.model.Departure
 import cz.dias.dpmbwear.data.model.Stop
@@ -38,6 +39,7 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(application)
     private val prefs = application.getSharedPreferences("dpmb_prefs", Context.MODE_PRIVATE)
     private val repository = DeparturesRepository(application)
+    private val stops = StopsRepository(application)
 
     private val _uiState = MutableStateFlow<DeparturesUiState>(DeparturesUiState.Loading)
     val uiState: StateFlow<DeparturesUiState> = _uiState.asStateFlow()
@@ -60,7 +62,14 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
             if (nearbyStops.isEmpty()) {
                 _uiState.value = DeparturesUiState.Loading
                 val location = resolveLocation()
-                selectNearbyStops(location)
+                try {
+                    selectNearbyStops(location)
+                } catch (e: Exception) {
+                    // Se serverem a bez signálu při úplně prvním spuštění
+                    // nemáme ani zapamatované zastávky.
+                    _uiState.value = DeparturesUiState.Error(e.toUserMessage())
+                    return@launch
+                }
             }
             fetchCurrentStop(showLoading = true)
         }
@@ -146,13 +155,13 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
                 .addOnFailureListener { continuation.resume(null) }
         }
 
-    private fun selectNearbyStops(location: Location?) {
+    private suspend fun selectNearbyStops(location: Location?) {
         // Bez polohy začínáme na České – je to přestupní uzel v centru, takže
         // je to nejmíň špatný odhad.
         val lat = location?.latitude ?: StopsRepository.staticStops[0].lat
         val lon = location?.longitude ?: StopsRepository.staticStops[0].lon
 
-        val candidates = StopsRepository.nearest(lat, lon, limit = 5).toMutableList()
+        val candidates = stops.nearest(lat, lon, limit = 5).toMutableList()
 
         // Oblíbenou zastávku v okolí posuneme na první místo.
         val favourites = favouriteStopIds()
@@ -170,6 +179,7 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
 
         try {
             val result = repository.load(stop.id)
+            stops.lastStopId = stop.id
             _uiState.value = DeparturesUiState.Success(
                 stopName = stop.name,
                 departures = result.departures.take(10),
@@ -177,6 +187,7 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
                 indexText = "${currentStopIndex + 1}/${nearbyStops.size}",
                 isStale = result.isStale,
                 isDemo = isDemoData,
+                showAttribution = ServerClient.isConfigured,
                 fetchedAt = result.fetchedAt,
                 adjustedAt = result.adjustedAt,
             )
@@ -221,6 +232,11 @@ sealed interface DeparturesUiState {
         val isStale: Boolean,
         /** Chybí přístupový klíč, jde o ukázková data. */
         val isDemo: Boolean,
+        /**
+         * Data jdou z otevřených dat KORDIS JMK pod CC BY 4.0, která vyžaduje
+         * uvedení zdroje. Zároveň upozorňuje, že zpoždění je odhad.
+         */
+        val showAttribution: Boolean,
         /** Kdy data přišla ze sítě. */
         val fetchedAt: Long,
         /** Okamžik, ke kterému platí minuty v [departures]. Viz DeparturesResult. */

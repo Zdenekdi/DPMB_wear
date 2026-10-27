@@ -6,35 +6,50 @@ Aplikace pro Wear OS: odjezdy MHD v Brně, SMS jízdenky, QR kód z Brno iD.
 
 ## Stav dat — přečti první
 
-**Aplikace momentálně běží na ukázkových datech.** Odjezdy si generuje sama a nejsou
-skutečné.
+Aplikace umí tři zdroje odjezdů. Vybírá je `DeparturesRepository.defaultSource()`
+podle `local.properties` (soubor je v `.gitignore`):
 
-KORDIS JMK v roce 2026 zavedl technická opatření, která k API `mapa.idsjmk.cz`
-pouštějí pouze smluvní partnery. Dřívější verze klienta se vydávala za prohlížeč
-(podvržený `User-Agent`, `Referer`, `Sec-Fetch-*`) — to už nefunguje a bylo
-odstraněno.
+| Pořadí | Zdroj | Nastavení | Stav |
+|---|---|---|---|
+| 1 | **Vlastní server** nad otevřenými daty KORDIS (`server/`) | `DPMB_SERVER_URL`, `DPMB_SERVER_KEY` | hlavní cesta |
+| 2 | API `mapa.idsjmk.cz` s klíčem | `IDS_API_KEY` | jen pro smluvní partnery KORDIS |
+| 3 | Ukázková data | nic | aplikace to na obrazovce přizná |
 
-### Až přijde přístupový klíč
+### Proč vlastní server
 
-1. Doplň jej do `local.properties` (soubor je v `.gitignore`, do repozitáře se nedostane):
+KORDIS JMK v roce 2026 pustil API `mapa.idsjmk.cz` jen smluvním partnerům.
+Zároveň ale veřejně vydává jízdní řád (GTFS) a polohy vozidel (GTFS-RT)
+na `kordis-jmk.cz/gtfs/`, podle projektů, které je používají, pod CC BY 4.0.
+Server z nich počítá odjezdy; hodinky dostanou jen hotový seznam pro jednu
+zastávku. Podrobnosti a spuštění v [`server/README.md`](server/README.md).
 
-   ```
-   IDS_API_KEY=sem_patri_klic
-   ```
+Dvě věci, které z toho plynou:
 
-2. Nic dalšího není potřeba. `DeparturesRepository.defaultSource()` podle vyplněného
-   klíče sám přepne z `FakeDeparturesSource` na `IdsJmkDeparturesSource`.
+- **Zpoždění je odhad.** Feed obsahuje polohy, ne zpoždění. Server ho počítá
+  z polohy vozidla mezi zastávkami. Aplikace u spoje ukáže `LIVE +3`
+  a pod odjezdy upozornění „Zpoždění je odhad“.
+- **Uvedení zdroje je povinné** (CC BY 4.0). Text je pod seznamem odjezdů.
 
-3. Ověř způsob předání klíče. Kód počítá s query parametrem `?key=`. Kdyby ho
-   KORDIS chtěl jinak (například hlavičkou), mění se **jediné místo** —
-   rozhraní `IdsJmkApi` v `data/IdsJmkApi.kt`.
+### Vyzkoušení se serverem na Macu
+
+```bash
+cd server && pip install -e . && API_KEY=lokalni dpmb-server
+```
+
+Do `local.properties`:
+
+```
+DPMB_SERVER_URL=http://192.168.x.x:8080/
+DPMB_SERVER_KEY=lokalni
+```
+
+Ladicí build dovoluje `http://` (viz `app/src/debug/AndroidManifest.xml`),
+release jen `https://`.
 
 ### Klíč a veřejná distribuce
 
-Klíč je v APK, takže z něj jde dekompilací získat. Pro soukromé užití to nevadí.
-Pokud aplikace někdy zamíří k veřejné distribuci, klíč musí přejít na server a
-hodinky budou chodit přes proxy. Architektura je na to připravená: znamená to
-jednu novou třídu implementující `DeparturesSource`, zbytek aplikace se nemění.
+`DPMB_SERVER_KEY` je v APK, takže z něj jde dekompilací získat. Brání jen
+tomu, aby server náhodně zatížil kdokoli z internetu.
 
 ---
 
@@ -43,11 +58,14 @@ jednu novou třídu implementující `DeparturesSource`, zbytek aplikace se nem�
 ```
 data/
   DeparturesSource        rozhraní — jediné místo, kde se rozhoduje o zdroji dat
-  FakeDeparturesSource      ukázková data, když chybí klíč
-  IdsJmkDeparturesSource    ostrý zdroj z API KORDIS JMK
+  ServerDeparturesSource    vlastní server nad otevřenými daty KORDIS
+  DpmbServerApi             Retrofit rozhraní serveru + ServerClient
+  FakeDeparturesSource      ukázková data, když není server ani klíč
+  IdsJmkDeparturesSource    API KORDIS JMK s klíčem (smluvní partneři)
   IdsJmkApi                 Retrofit + OkHttp s timeouty
   DeparturesRepository      cache a výběr zdroje
-  StopsRepository           seznam zastávek, hledání nejbližší
+  StopsRepository           nejbližší zastávky (ze serveru, jinak statické),
+                            paměť zastávek pro dlaždici a komplikaci
   model/Models.kt           Stop, Departure, DeparturesResult
 
 presentation/
@@ -102,6 +120,9 @@ Pokrývají logiku, která selhává tiše — špatný výsledek vypadá jako d
 - `ParseTimeMarkTest` — převod značky času z API, přetok přes půlnoc oběma směry
 - `CacheAdjustmentTest` — stárnutí cache a zahazování odjetých spojů
 - `LineColorsTest` — přiřazení barvy linky, včetně regrese na pořadí podmínek
+- `ServerMappingTest` — převod odpovědi serveru, zahazování neúplných řádků
+
+Server má vlastní testy: `cd server && pytest`.
 
 Obě testované funkce berou čas jako parametr, aby šel v testu zafixovat.
 
@@ -109,12 +130,13 @@ Obě testované funkce berou čas jako parametr, aby šel v testu zafixovat.
 
 ## Co zbývá
 
-**Blokuje reálný provoz**
+**Před ostrým provozem**
 
-- Uzavřít smlouvu s KORDIS JMK a doplnit klíč.
-- Databáze zastávek. `StopsRepository` má natvrdo pět zastávek, Brno jich má
-  přes tisíc. Cílově `stops.txt` z GTFS (data.brno.cz, aktualizace v neděli)
-  načtený do Room s vyhledáním podle polohy.
+- Ověřit licenci dat přímo u KORDIS a podmínky užití GTFS-RT.
+- Nasadit server (Docker, 1 GB RAM) s https a vyplnit `DPMB_SERVER_URL`.
+- Porovnat odhad zpoždění se skutečností na pár spojích.
+- Ze serveru přichází i ID zastávek ve tvaru `U1472`; oblíbené zastávky
+  uložené se starými ID (`1017`) se se serverem nenajdou.
 
 **Vyžaduje zařízení**
 

@@ -7,6 +7,9 @@
     <string name="departures_refresh">Aktualizovat</string>
     <string name="departures_minutes_short">min</string>
     <string name="departures_live">LIVE</string>
+    <!-- Zpoždění je odhad z polohy vozidla, feed KORDIS ho neobsahuje. -->
+    <string name="departures_live_delay">LIVE +%1$d</string>
+    <string name="departures_attribution">Data: KORDIS JMK (CC BY 4.0). Zpoždění je odhad.</string>
     <string name="departures_previous_stop">Předchozí zastávka</string>
     <string name="departures_next_stop">Další zastávka</string>
     <string name="departures_favorite_add">Přidat do oblíbených</string>

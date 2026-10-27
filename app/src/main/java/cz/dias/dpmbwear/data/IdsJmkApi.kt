@@ -56,7 +56,7 @@ object NetworkClient {
      * které se běžně dostanou mimo dosah telefonu i wifi, to znamená obrazovku
      * zaseknutou na "Načítám" bez konce.
      */
-    private val client: OkHttpClient by lazy {
+    internal val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
@@ -68,7 +68,7 @@ object NetworkClient {
     val api: IdsJmkApi by lazy {
         Retrofit.Builder()
             .baseUrl("https://mapa.idsjmk.cz/")
-            .client(client)
+            .client(httpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(IdsJmkApi::class.java)

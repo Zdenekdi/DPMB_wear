@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Jen pro ladicí build: dovolí http:// na server spuštěný na Macu v místní
+    síti (DPMB_SERVER_URL=http://192.168.x.x:8080/). Release build smí jen https.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

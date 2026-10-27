@@ -13,10 +13,22 @@ plugins {
  * ho lze dekompilací získat. Proti zneužití klíče to tedy nechrání, chrání to
  * jen git historii.
  */
-val idsApiKey: String = Properties().apply {
+val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
-}.getProperty("IDS_API_KEY") ?: ""
+}
+
+val idsApiKey: String = localProps.getProperty("IDS_API_KEY") ?: ""
+
+/**
+ * Vlastní server nad otevřenými daty KORDIS JMK (složka server/).
+ * Když je adresa vyplněná, má přednost před API s klíčem.
+ *
+ *   DPMB_SERVER_URL=https://dpmb.example.cz/
+ *   DPMB_SERVER_KEY=stejny-klic-jako-API_KEY-na-serveru
+ */
+val dpmbServerUrl: String = localProps.getProperty("DPMB_SERVER_URL") ?: ""
+val dpmbServerKey: String = localProps.getProperty("DPMB_SERVER_KEY") ?: ""
 
 android {
     namespace = "cz.dias.dpmbwear"
@@ -34,6 +46,8 @@ android {
         versionName = "1.0"
 
         buildConfigField("String", "IDS_API_KEY", "\"$idsApiKey\"")
+        buildConfigField("String", "DPMB_SERVER_URL", "\"$dpmbServerUrl\"")
+        buildConfigField("String", "DPMB_SERVER_KEY", "\"$dpmbServerKey\"")
     }
 
     buildTypes {

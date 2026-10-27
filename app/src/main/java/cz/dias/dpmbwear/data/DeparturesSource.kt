@@ -5,10 +5,10 @@ import cz.dias.dpmbwear.data.model.Departure
 /**
  * Zdroj odjezdů.
  *
- * Existuje proto, aby se dal po podpisu smlouvy s KORDISem vyměnit
- * [FakeDeparturesSource] za [IdsJmkDeparturesSource] beze změny zbytku
- * aplikace. Volba probíhá v [DeparturesRepository] podle toho, jestli je
- * vyplněný přístupový klíč.
+ * Existuje proto, aby šlo měnit odkud data jdou beze změny zbytku aplikace:
+ * [ServerDeparturesSource] (vlastní server nad otevřenými daty),
+ * [IdsJmkDeparturesSource] (API KORDIS s klíčem) nebo [FakeDeparturesSource].
+ * Volba probíhá v [DeparturesRepository.defaultSource] podle local.properties.
  */
 interface DeparturesSource {
 

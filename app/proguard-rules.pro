@@ -7,6 +7,10 @@
 -keep class cz.dias.dpmbwear.data.DeparturesResponse { *; }
 -keep class cz.dias.dpmbwear.data.PostNode { *; }
 -keep class cz.dias.dpmbwear.data.ApiDeparture { *; }
+-keep class cz.dias.dpmbwear.data.StopsResponse { *; }
+-keep class cz.dias.dpmbwear.data.ServerStop { *; }
+-keep class cz.dias.dpmbwear.data.ServerDeparturesResponse { *; }
+-keep class cz.dias.dpmbwear.data.ServerDeparture { *; }
 
 # Gson potřebuje generické typy pro TypeToken
 -keepattributes Signature

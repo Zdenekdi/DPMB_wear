@@ -1,7 +1,8 @@
 package cz.dias.dpmbwear.data.model
 
 /**
- * Zastávka. Zatím ze statického seznamu, po napojení na GTFS z stops.txt.
+ * Zastávka. Ze serveru jde o skupinu nástupišť (U1472 = všechna nástupiště
+ * zastávky), ve statickém seznamu o staré ID z API KORDIS.
  */
 data class Stop(
     val id: String,
@@ -22,6 +23,16 @@ data class Departure(
     val destination: String,
     val timeMinutes: Int,
     val isLive: Boolean,
+    /**
+     * Zpoždění v minutách, záporné = náskok. Null = živá data o spoji nejsou.
+     *
+     * Ze serveru jde o ODHAD z polohy vozidla – feed KORDISu zpoždění
+     * neobsahuje. [timeMinutes] už zpoždění zahrnuje; tohle pole slouží jen
+     * k popisku "+3".
+     *
+     * Výchozí null kvůli cache: odjezdy uložené starší verzí pole nemají.
+     */
+    val delayMinutes: Int? = null,
 )
 
 /**

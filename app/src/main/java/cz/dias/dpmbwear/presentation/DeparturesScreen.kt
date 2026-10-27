@@ -232,6 +232,22 @@ fun DeparturesScreen(viewModel: DeparturesViewModel = viewModel()) {
                             )
                         }
                     }
+
+                    // Licence CC BY 4.0 vyžaduje uvedení zdroje. Zároveň tu
+                    // přiznáváme, že zpoždění je odhad, ne hlášení dopravce.
+                    if (state.showAttribution && !isAmbient) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.departures_attribution),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -505,8 +521,16 @@ private fun DepartureRow(
                             .background(LiveGreen),
                     )
                     Spacer(modifier = Modifier.width(3.dp))
+                    // Zpoždění ukazujeme jen kladné. Náskok se do minut
+                    // nepromítá (server počítá s odjezdem podle řádu), takže
+                    // "−2" by jen mátlo.
+                    val delay = departure.delayMinutes?.takeIf { it > 0 }
                     Text(
-                        text = stringResource(R.string.departures_live),
+                        text = if (delay != null) {
+                            stringResource(R.string.departures_live_delay, delay)
+                        } else {
+                            stringResource(R.string.departures_live)
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = LiveGreen,
