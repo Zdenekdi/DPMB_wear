@@ -1,10 +1,25 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
 
+/**
+ * Přístupový klíč do API KORDIS JMK.
+ *
+ * Čte se z local.properties, který je v .gitignore – klíč tak nikdy neskončí
+ * v repozitáři. Pozor: v APK být musí, aby se s ním dalo dotazovat, a odtud
+ * ho lze dekompilací získat. Proti zneužití klíče to tedy nechrání, chrání to
+ * jen git historii.
+ */
+val idsApiKey: String = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}.getProperty("IDS_API_KEY") ?: ""
+
 android {
-    namespace = "com.example.dpmbwear"
+    namespace = "cz.dias.dpmbwear"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,12 +27,13 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.dpmbwear"
+        applicationId = "cz.dias.dpmbwear"
         minSdk = 30
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
+        buildConfigField("String", "IDS_API_KEY", "\"$idsApiKey\"")
     }
 
     buildTypes {
@@ -36,6 +52,7 @@ android {
     useLibrary("wear-sdk")
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -57,12 +74,28 @@ dependencies {
     implementation(libs.zxing)
     implementation(libs.wear.compose.navigation)
 
+    // Lifecycle – explicitně, ne jen tranzitivně přes wear-compose-navigation.
+    // viewModel() a collectAsStateWithLifecycle() by jinak zmizely při jakékoli
+    // změně navigační závislosti.
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+
+    // Coroutines explicitně – používají se napříč aplikací, ale dosud sem
+    // padaly jen tranzitivně přes lifecycle a Compose.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
     // Networking
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    
+    // OkHttp explicitně kvůli timeoutům – bez nich čeká Retrofit na hodinkách
+    // se slabým signálem defaultních 10 s na připojení a donekonečna na čtení.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     // Location
     implementation("com.google.android.gms:play-services-location:21.2.0")
+
+    // Komplikace na ciferník
+    implementation("androidx.wear.watchface:watchface-complications-data-source-ktx:1.2.1")
 
     // Tiles
     implementation("androidx.wear.tiles:tiles:1.4.1")
@@ -71,6 +104,9 @@ dependencies {
     implementation("androidx.wear.protolayout:protolayout-material:1.2.1")
     implementation("androidx.wear.protolayout:protolayout-expression:1.2.1")
     implementation("com.google.guava:guava:31.1-android")
+
+    // Čisté JVM testy logiky, která selhává tiše (parsování časů, stárnutí cache).
+    testImplementation("junit:junit:4.13.2")
 
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.ui.test.junit4)

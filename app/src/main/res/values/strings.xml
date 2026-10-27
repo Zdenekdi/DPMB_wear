@@ -1,4 +1,45 @@
 <resources>
     <string name="app_name">DPMB Wear</string>
-    <string name="hello_world">Hello, %1$s!</string>
+
+    <!-- Odjezdy -->
+    <string name="departures_loading">Hledám polohu…</string>
+    <string name="departures_empty">Žádné odjezdy</string>
+    <string name="departures_refresh">Aktualizovat</string>
+    <string name="departures_minutes_short">min</string>
+    <string name="departures_live">LIVE</string>
+    <string name="departures_previous_stop">Předchozí zastávka</string>
+    <string name="departures_next_stop">Další zastávka</string>
+    <string name="departures_favorite_add">Přidat do oblíbených</string>
+    <string name="departures_favorite_remove">Odebrat z oblíbených</string>
+    <string name="departures_favorite">Oblíbená zastávka</string>
+    <string name="departures_stale">Bez signálu · před %1$d min</string>
+    <string name="departures_demo">Ukázková data</string>
+    <string name="departures_error_network">Nedaří se připojit k síti</string>
+    <string name="departures_error_generic">Odjezdy se nepodařilo načíst</string>
+
+    <!-- SMS jízdenky -->
+    <string name="sms_title">SMS JÍZDENKY</string>
+    <string name="sms_ticket_20">20 min</string>
+    <string name="sms_ticket_75">75 min</string>
+    <string name="sms_ticket_day">24 hod</string>
+    <string name="sms_category_basic">Základní</string>
+    <string name="sms_category_daily">Denní</string>
+
+    <!-- QR -->
+    <string name="qr_title">BRNO iD</string>
+    <string name="qr_empty">Zatím tu není žádný kód</string>
+    <string name="qr_load">Nahrát kód</string>
+    <string name="qr_change">Změnit</string>
+    <string name="qr_retry">Zadat znovu</string>
+    <string name="qr_error">Kód se nepodařilo vygenerovat</string>
+    <string name="qr_input_label">Zadejte URL nebo kód</string>
+    <string name="qr_content_description">QR kód jízdenky</string>
+
+    <!-- Komplikace -->
+    <string name="complication_label">Nejbližší odjezd</string>
+    <string name="complication_description">Ukáže nejbližší odjezd z nejbližší zastávky</string>
+    <string name="complication_no_data">--</string>
+    <string name="complication_unknown">Odjezd není znám</string>
+    <string name="complication_next">Linka %1$s za %2$d minut</string>
+    <string name="complication_preview">Tramvaj 1 za 3 minuty</string>
 </resources>

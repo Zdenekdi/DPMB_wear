@@ -2,7 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.SEND_SMS" />
+    <!--
+        SEND_SMS tu bylo zbytečně. Aplikace SMS neodesílá sama, jen otevře
+        systémovou SMS aplikaci přes ACTION_SENDTO, což žádné oprávnění
+        nevyžaduje. Navíc je to na Google Play omezené oprávnění, které by
+        při publikaci vyžadovalo zvláštní schvalovací formulář.
+    -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -51,9 +56,44 @@
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
             </intent-filter>
 
+            <!--
+                Klíč je androidx.wear.tiles.PREVIEW (TileService.META_DATA_PREVIEW_KEY).
+                Pod jiným názvem se metadata tiše ignorují a náhled se nezobrazí.
+            -->
             <meta-data
-                android:name="androidx.wear.tiles.PREVIEW_TILE"
-                android:value="@drawable/ic_launcher_background" />
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <!--
+            Komplikace na ciferník: nejbližší odjezd bez otevírání aplikace.
+            Ikona je monochromatická varianta – výběr komplikací ji obarvuje,
+            takže z ic_launcher_foreground (které má výřezy nakreslené červenou
+            barvou pozadí) by vznikla jednolitá skvrna.
+        -->
+        <service
+            android:name=".complication.NextDepartureComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_monochrome"
+            android:label="@string/complication_label"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="SHORT_TEXT" />
+
+            <!--
+                Jak často smí systém požádat o data, v sekundách. 300 s je
+                kompromis: odjezd se za pět minut posune, ale rádio se nebudí
+                pořád dokola. Systém interval stejně může prodloužit podle
+                stavu baterie.
+            -->
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="300" />
         </service>
     </application>
 

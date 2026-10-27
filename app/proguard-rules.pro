@@ -1,21 +1,25 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Zatím se neuplatní – isMinifyEnabled = false. Až se zapne, bez těchto
+# pravidel by Gson tiše vracel objekty s null poli, protože R8 přejmenuje
+# vlastnosti, podle kterých se JSON mapuje.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Datové modely a DTO
+-keep class cz.dias.dpmbwear.data.model.** { *; }
+-keep class cz.dias.dpmbwear.data.DeparturesResponse { *; }
+-keep class cz.dias.dpmbwear.data.PostNode { *; }
+-keep class cz.dias.dpmbwear.data.ApiDeparture { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Gson potřebuje generické typy pro TypeToken
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn sun.misc.**
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Retrofit
+-keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+
+# OkHttp
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn org.conscrypt.**

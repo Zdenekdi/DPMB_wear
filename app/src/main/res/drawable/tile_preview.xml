@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Náhled dlaždice ve výběru na hodinkách.
+    Dřív tu bylo ic_launcher_background, takže se v seznamu ukazovala jen barevná
+    plocha. Tohle napodobuje skutečný obsah: název zastávky a tři řádky odjezdů
+    s pilulkami v barvách linek (tramvaj, trolejbus, autobus).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp"
+    android:height="96dp"
+    android:viewportWidth="96"
+    android:viewportHeight="96">
+
+    <!-- Pozadí -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M48,0a48,48 0 1 1 -0.1,0z" />
+
+    <!-- Název zastávky -->
+    <path
+        android:fillColor="#B0B0B8"
+        android:pathData="M32,22h32v4h-32z" />
+
+    <!-- Řádek 1: tramvaj -->
+    <path
+        android:fillColor="#992224"
+        android:pathData="M20,34h13a3,3 0 0 1 0,6h-13a3,3 0 0 1 0,-6z" />
+    <path
+        android:fillColor="#3A3A40"
+        android:pathData="M37,35h28v4h-28z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M68,34h8v6h-8z" />
+
+    <!-- Řádek 2: trolejbus -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M20,46h13a3,3 0 0 1 0,6h-13a3,3 0 0 1 0,-6z" />
+    <path
+        android:fillColor="#3A3A40"
+        android:pathData="M37,47h24v4h-24z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M68,46h8v6h-8z" />
+
+    <!-- Řádek 3: autobus -->
+    <path
+        android:fillColor="#35659C"
+        android:pathData="M20,58h13a3,3 0 0 1 0,6h-13a3,3 0 0 1 0,-6z" />
+    <path
+        android:fillColor="#3A3A40"
+        android:pathData="M37,59h26v4h-26z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M68,58h8v6h-8z" />
+</vector>
