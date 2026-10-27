@@ -6,6 +6,7 @@ import cz.dias.dpmbwear.shared.transit.GtfsRealtimeDecoder
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /**
  * Živá data (polohy vozidel) z GTFS-RT KORDIS JMK.
@@ -22,6 +23,15 @@ object RealtimeSource {
     /** Při výpadku feedu se starší polohy ještě chvíli použijí, ale ne déle. */
     private const val STALE_LIMIT_S = 120L
 
+    /**
+     * Vlastní klient s krátkým limitem: hodinky čekají na odpověď 8 s. Když
+     * KORDIS odpovídá pomalu, je lepší poslat odjezdy podle jízdního řádu
+     * včas než živá data pozdě.
+     */
+    private val client: OkHttpClient by lazy {
+        Http.client.newBuilder().callTimeout(4, TimeUnit.SECONDS).build()
+    }
+
     private var last: FeedSnapshot? = null
     private var lastFetchedAt = 0L
 
@@ -30,7 +40,7 @@ object RealtimeSource {
      *   Bez živých dat telefon odpoví podle jízdního řádu.
      */
     @Synchronized
-    fun snapshot(now: Long, client: OkHttpClient = Http.client): Pair<FeedSnapshot, Int>? {
+    fun snapshot(now: Long): Pair<FeedSnapshot, Int>? {
         last?.let { if (now - lastFetchedAt < CACHE_S) return it to age(it, now) }
         return try {
             val request = Request.Builder().url(Http.GTFS_RT_URL).build()

@@ -27,6 +27,9 @@ class PhoneListenerService : WearableListenerService() {
 
     override fun onMessageReceived(event: MessageEvent) {
         if (event.path != DataLayer.PATH_REQUEST) return
+        // Aplikace na telefonu se nemusí nikdy otevřít. Pravidelná aktualizace
+        // jízdního řádu se proto plánuje i odsud (KEEP = jen poprvé).
+        TimetableUpdateWorker.schedule(this)
         val request = try {
             PayloadCodec.decodeRequest(event.data)
         } catch (e: Exception) {

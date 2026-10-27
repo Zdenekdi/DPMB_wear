@@ -28,23 +28,35 @@ class StopsRepository(
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** Zastávky seřazené podle vzdálenosti. */
-    suspend fun nearest(lat: Double, lon: Double, limit: Int): List<Stop> {
+    /**
+     * Zastávky seřazené podle vzdálenosti.
+     *
+     * @param lat poloha hodinek, nebo null. Telefonu se null pošle tak, jak
+     *   je – použije svou polohu. Výchozí bod (Česká) platí jen pro server,
+     *   paměť a statický seznam; telefonu by vnutil zastávky kolem České.
+     */
+    suspend fun nearest(lat: Double?, lon: Double?, limit: Int): List<Stop> {
         phone?.let { bridge ->
             try {
                 // Telefon v téže odpovědi pošle i odjezdy těchto zastávek, takže
                 // následné načtení odjezdů už přes Bluetooth nejde.
-                val found = bridge.request(lat, lon, stopId = null).payload.stops
+                val found = bridge.request(lat, lon, stopId = null, maxStops = limit).payload.stops
                     .map { Stop(it.id, it.name, it.lat, it.lon) }
                 if (found.isNotEmpty()) {
                     found.forEach(::remember)
                     return found.take(limit)
                 }
-            } catch (e: PhoneUnavailableException) {
-                // Telefon není po ruce – zkusí se server nebo paměť.
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Telefon není po ruce nebo Wearable API chybí – zkusí se
+                // server nebo paměť.
             }
         }
+        return nearestWithoutPhone(lat ?: staticStops[0].lat, lon ?: staticStops[0].lon, limit)
+    }
 
+    private suspend fun nearestWithoutPhone(lat: Double, lon: Double, limit: Int): List<Stop> {
         val server = api ?: return rememberedStops()
             .sortedBy { distanceKm(lat, lon, it.lat, it.lon) }
             .take(limit)

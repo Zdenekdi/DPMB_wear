@@ -1,5 +1,6 @@
 package cz.dias.dpmbwear.shared.transit
 
+import java.nio.Buffer
 import java.nio.ByteBuffer
 import java.nio.IntBuffer
 import java.time.LocalDate
@@ -190,9 +191,12 @@ class Timetable private constructor(
         /** IntBuffer nad dalšími [count] inty bez kopírování; posune pozici za ně. */
         private fun ByteBuffer.sliceInts(count: Int): IntBuffer {
             val view = duplicate()
-            view.limit(position() + count * 4)
+            // Volání přes java.nio.Buffer: ByteBuffer.limit(int)/position(int)
+            // vracející ByteBuffer existují až od Javy 9 / Androidu 14. Takhle
+            // se zavolá metoda, kterou má každá verze Androidu.
+            (view as Buffer).limit(position() + count * 4)
             val ints = view.slice().order(order()).asIntBuffer()
-            position(position() + count * 4)
+            (this as Buffer).position(position() + count * 4)
             return ints
         }
 

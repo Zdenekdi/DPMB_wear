@@ -53,10 +53,18 @@ class MainActivity : Activity() {
             })
             addView(output)
         }
-        setContentView(ScrollView(this).apply { addView(layout) })
+        // Android 15+ vynucuje kreslení pod stavovou lištu; bez tohohle by
+        // první řádek stavu zmizel pod ní.
+        setContentView(ScrollView(this).apply {
+            fitsSystemWindows = true
+            addView(layout)
+        })
 
         TimetableUpdateWorker.schedule(this)
-        if (TimetableStore.get(this).timetable() == null) TimetableUpdateWorker.runNow(this)
+        // Načtení jízdního řádu parsuje tabulky zastávek a spojů – ne na hlavním vlákně.
+        io.execute {
+            if (TimetableStore.get(this).timetable() == null) TimetableUpdateWorker.runNow(this)
+        }
         if (checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), 1)
         }

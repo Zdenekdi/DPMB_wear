@@ -49,6 +49,12 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
     private var currentStopIndex = 0
     private var autoRefreshJob: Job? = null
 
+    /**
+     * Právě běžící načtení. Nové načtení předchozí zruší – jinak by pomalá
+     * odpověď pro předchozí zastávku mohla přepsat obrazovku po přepnutí.
+     */
+    private var loadJob: Job? = null
+
     init {
         // Odpověď z telefonu může dorazit i po timeoutu nebo jako odpověď na
         // dotaz dlaždice. Když obsahuje zobrazenou zastávku, obrazovka se
@@ -58,7 +64,7 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
             PhoneBridge.get(application).updates.collect { received ->
                 val stop = nearbyStops.getOrNull(currentStopIndex) ?: return@collect
                 if (received.payload.stop(stop.id) != null && _uiState.value is DeparturesUiState.Success) {
-                    fetchCurrentStop(showLoading = false)
+                    launchFetch(showLoading = false)
                 }
             }
         }
@@ -71,7 +77,8 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
         ) == PackageManager.PERMISSION_GRANTED
 
     fun loadDepartures() {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             if (nearbyStops.isEmpty()) {
                 _uiState.value = DeparturesUiState.Loading
                 val location = resolveLocation()
@@ -102,7 +109,7 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
         autoRefreshJob = viewModelScope.launch {
             while (isActive) {
                 delay(AUTO_REFRESH_INTERVAL_MS)
-                if (nearbyStops.isNotEmpty()) fetchCurrentStop(showLoading = false)
+                if (nearbyStops.isNotEmpty()) launchFetch(showLoading = false)
             }
         }
     }
@@ -119,7 +126,12 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
     private fun switchStop(delta: Int) {
         if (nearbyStops.isEmpty()) return
         currentStopIndex = (currentStopIndex + delta + nearbyStops.size) % nearbyStops.size
-        viewModelScope.launch { fetchCurrentStop(showLoading = true) }
+        launchFetch(showLoading = true)
+    }
+
+    private fun launchFetch(showLoading: Boolean) {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch { fetchCurrentStop(showLoading) }
     }
 
     fun toggleFavorite() {
@@ -171,12 +183,9 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
         }
 
     private suspend fun selectNearbyStops(location: Location?) {
-        // Bez polohy začínáme na České – je to přestupní uzel v centru, takže
-        // je to nejmíň špatný odhad.
-        val lat = location?.latitude ?: StopsRepository.staticStops[0].lat
-        val lon = location?.longitude ?: StopsRepository.staticStops[0].lon
-
-        val candidates = stops.nearest(lat, lon, limit = 5).toMutableList()
+        // Bez polohy hodinek se telefon řídí svou polohou; bez telefonu se
+        // začíná na České (přestupní uzel v centru, nejmíň špatný odhad).
+        val candidates = stops.nearest(location?.latitude, location?.longitude, limit = 5).toMutableList()
 
         // Oblíbenou zastávku v okolí posuneme na první místo.
         val favourites = favouriteStopIds()
@@ -194,6 +203,8 @@ class DeparturesViewModel(application: Application) : AndroidViewModel(applicati
 
         try {
             val result = repository.load(stop.id)
+            // Uživatel mezitím mohl přepnout zastávku.
+            if (nearbyStops.getOrNull(currentStopIndex) != stop) return
             stops.lastStopId = stop.id
             _uiState.value = DeparturesUiState.Success(
                 stopName = stop.name,

@@ -35,7 +35,9 @@ class DeparturesResponder(context: Context) {
         }
 
         // Hodinky polohu poslat nemusí (oprávnění, úspora baterie). Telefon je
-        // u uživatele, takže jeho poloha poslouží stejně dobře.
+        // u uživatele, takže jeho poloha poslouží stejně dobře – ale jen
+        // best-effort: na pozadí ji Android 10+ bez ACCESS_BACKGROUND_LOCATION
+        // obvykle nevydá. Hlavní cesta je poloha z hodinek.
         val req = if (request.lat == null || request.lon == null) {
             phoneLocation()?.let { request.copy(lat = it.latitude, lon = it.longitude) } ?: request
         } else {

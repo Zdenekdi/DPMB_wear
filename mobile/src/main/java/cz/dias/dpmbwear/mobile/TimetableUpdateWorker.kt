@@ -47,6 +47,9 @@ class TimetableUpdateWorker(context: Context, params: WorkerParameters) : Corout
 
         fun schedule(context: Context) {
             val request = PeriodicWorkRequestBuilder<TimetableUpdateWorker>(1, TimeUnit.DAYS)
+                // První stažení řeší runNow(); bez odkladu by se obě úlohy
+                // spustily hned po instalaci zároveň.
+                .setInitialDelay(1, TimeUnit.DAYS)
                 .setConstraints(
                     Constraints.Builder()
                         .setRequiredNetworkType(NetworkType.UNMETERED)
@@ -67,7 +70,9 @@ class TimetableUpdateWorker(context: Context, params: WorkerParameters) : Corout
                 .setInputData(workDataOf(KEY_FORCE to force))
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(ONE_TIME, ExistingWorkPolicy.KEEP, request)
+            // Ruční "stáhnout teď" (force) nahradí úlohu, která třeba ještě čeká na síť.
+            val policy = if (force) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+            WorkManager.getInstance(context).enqueueUniqueWork(ONE_TIME, policy, request)
         }
     }
 }

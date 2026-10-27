@@ -64,7 +64,15 @@ class TimetableStore private constructor(context: Context) {
      *
      * @return true = nainstalován nový jízdní řád
      */
-    fun update(client: OkHttpClient = Http.client, force: Boolean = false): Boolean {
+    fun update(client: OkHttpClient = Http.client, force: Boolean = false): Boolean = synchronized(UPDATE_LOCK) {
+        // Pravidelná a okamžitá aktualizace jsou různé úlohy WorkManageru a
+        // můžou běžet zároveň. Dva převody naráz by si přepisovaly soubory
+        // a každý potřebuje ~200 MB paměti. Druhý počká a díky
+        // If-Modified-Since pak skončí odpovědí 304.
+        updateLocked(client, force)
+    }
+
+    private fun updateLocked(client: OkHttpClient, force: Boolean): Boolean {
         val builder = Request.Builder().url(Http.GTFS_URL)
         if (!force && file.exists()) {
             prefs.getString(KEY_LAST_MODIFIED, null)?.let { builder.header("If-Modified-Since", it) }
@@ -74,8 +82,8 @@ class TimetableStore private constructor(context: Context) {
             if (resp.code == 304) return false
             if (!resp.isSuccessful) throw IOException("Jízdní řád: HTTP ${resp.code}")
 
-            val zip = File(appContext.cacheDir, "gtfs.zip")
-            val part = File(appContext.filesDir, "timetable.bin.part")
+            val zip = File.createTempFile("gtfs", ".zip", appContext.cacheDir)
+            val part = File.createTempFile("timetable", ".part", appContext.filesDir)
             try {
                 resp.body?.byteStream()?.use { input -> zip.outputStream().use { input.copyTo(it) } }
                     ?: throw IOException("Jízdní řád: prázdná odpověď")
@@ -114,6 +122,7 @@ class TimetableStore private constructor(context: Context) {
         private const val KEY_LAST_MODIFIED = "last_modified"
         private const val KEY_VERSION = "version"
         private const val KEY_LAST_CHECK = "last_check"
+        private val UPDATE_LOCK = Any()
 
         @Volatile
         private var instance: TimetableStore? = null
